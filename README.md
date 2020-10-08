@@ -2,7 +2,7 @@
 This repo is for freertos plugin in GDB
 
 ## How to use it?
-'''
+```
 source -v freertos.py
 {"token":35,"outOfBandRecord":[],"resultRecords":{"resultClass":"done","results":[]}}
 freertos_check_tasks
@@ -20,4 +20,4 @@ bt
 #2  0x08004210 in pxPortInitialiseStack (pxTopOfStack=0x0, pxCode=0xa5a5a5a5, pvParameters=0x8000553 <vTaskLED3+26>) at FreeRTOS/portable/GCC/ARM_CM4F/port.c:253
 Backtrace stopped: previous frame identical to this frame (corrupt stack?)
 {"token":61,"outOfBandRecord":[],"resultRecords":{"resultClass":"done","results":[]}}
-'''
+```
