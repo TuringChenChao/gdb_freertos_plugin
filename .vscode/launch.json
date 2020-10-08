@@ -1,0 +1,36 @@
+{
+    // 使用 IntelliSense 了解相关属性。 
+    // 悬停以查看现有属性的描述。
+    // 欲了解更多信息，请访问: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "cwd": "${workspaceRoot}/stm32_test",
+            "executable": "/home/cer1991/QEMU/stm32_test/out/HAL_demo.elf",
+            "name": "ARM Cortext Debug Microcontroller",
+            "request": "attach",
+            "type": "cortex-debug",
+            "servertype": "external",
+            "gdbTarget": "localhost:1234",
+            // "armToolchainPath": "/home/cer1991/QEMU/arm_toolchain_custom",
+            "toolchainPrefix": "tc-arm-none-eabi",
+            // "toolchainPrefix": "py-arm-none-eabi",
+            "preAttachCommands": [
+                "set confirm off",
+                "cd /home/cer1991/QEMU/stm32_test",
+                "file ./out/HAL_demo.elf",
+                "load",
+                "set $pc = Reset_Handler",
+                "hb Reset_Handler",
+                "c",
+                // "cd /home/cer1991/QEMU/stm32_test",
+                // "file ./out/HAL_demo.elf",
+                "source -v restore_cmd.txt",
+                // "source -v restore_cmd1.txt",
+                "source -v freertos.py",
+                "freertos_check_tasks",
+            ],
+            // "showDevDebugOutput": true
+        }
+    ]
+}
