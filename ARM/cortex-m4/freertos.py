@@ -96,7 +96,7 @@ class arm_context():
 
 class freertos_thread():
     """
-    docstring
+    freertos task handle
     """
     def __init__(self):
         self.number = 0
