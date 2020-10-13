@@ -2,6 +2,8 @@
 import gdb
 import re
 import copy
+import subprocess
+import time
 #----------------------        Import Area End    ------------------------------
 
 
@@ -28,7 +30,7 @@ def get_word_value_by_address(address):
     else:
         out = gdb.execute("x/1xw "+address, from_tty=False, to_string=True)
     out = out.replace('~', '').replace('\"', '').replace('\\n', '')
-    result = GetAllStrListInText(out, address+r'\s+.*:\s+(0x[0-9a-fA-F]{1,8})')
+    result = GetAllStrListInText(out, address+r'\s*.*:\s+(0x[0-9a-fA-F]{1,8})')
     return int(result[0], 16)
 
 def get_thread_name(thread):
@@ -67,6 +69,77 @@ def exception_change_to_lastest_frame():
     depth = int(depth[0], 10)
     # print(depth)
     gdb.execute('select-frame '+str(depth), from_tty=False, to_string=True)
+
+def freertos_get_contex(topofstack, thread):
+    thread.context.r4  = get_word_value_by_address(topofstack+0)
+    thread.context.r5  = get_word_value_by_address(topofstack+4)
+    thread.context.r6  = get_word_value_by_address(topofstack+8)
+    thread.context.r7  = get_word_value_by_address(topofstack+12)
+    thread.context.r8  = get_word_value_by_address(topofstack+16)
+    thread.context.r9  = get_word_value_by_address(topofstack+20)
+    thread.context.r10 = get_word_value_by_address(topofstack+24)
+    thread.context.r11 = get_word_value_by_address(topofstack+28)
+    exec_return = get_word_value_by_address(topofstack+32)
+    if (exec_return & 0x10) != 0:
+        # do not use FPU
+        thread.context.r0  = get_word_value_by_address(topofstack+36)
+        thread.context.r1  = get_word_value_by_address(topofstack+40)
+        thread.context.r2  = get_word_value_by_address(topofstack+44)
+        thread.context.r3  = get_word_value_by_address(topofstack+48)
+        thread.context.r12 = get_word_value_by_address(topofstack+52)
+        thread.context.lr  = get_word_value_by_address(topofstack+56)
+        thread.context.pc  = get_word_value_by_address(topofstack+60)
+        xpsr = get_word_value_by_address(topofstack+64)
+        if (xpsr & 0x200) == 0:
+            # not 8B aligned
+            thread.context.sp  = topofstack+68
+        else:
+            thread.context.sp  = topofstack+68+4
+    else:
+        # do use FPU
+        thread.context.r0  = get_word_value_by_address(topofstack+16*4+36)
+        thread.context.r1  = get_word_value_by_address(topofstack+16*4+40)
+        thread.context.r2  = get_word_value_by_address(topofstack+16*4+44)
+        thread.context.r3  = get_word_value_by_address(topofstack+16*4+48)
+        thread.context.r12 = get_word_value_by_address(topofstack+16*4+52)
+        thread.context.lr  = get_word_value_by_address(topofstack+16*4+56)
+        thread.context.pc  = get_word_value_by_address(topofstack+16*4+60)
+        xpsr = get_word_value_by_address(topofstack+16*4+64)
+        if (xpsr & 0x200) == 0:
+            # not 8B aligned
+            thread.context.sp  = topofstack+68+33*4
+        else:
+            thread.context.sp  = topofstack+68+4+33*4
+
+def qemu_start_arm_cpu(port):
+    # print(port)
+    qemu = subprocess.Popen([   "qemu-system-arm",
+                                "-machine", "cm7_virtual",
+                                "-kernel", "/home/cer1991/ARM/QEMU_Startup/out/qemu_startup.elf",
+                                "-gdb", "tcp::"+str(port),
+                                "-nographic"],
+                                bufsize=0,
+                                stdin=subprocess.PIPE,
+                                stdout=subprocess.PIPE,
+                                stderr=subprocess.PIPE,
+                                shell=False)
+    # time.sleep(2)
+    return qemu
+
+def gdb_create_new_inferior(port):
+    # print('enter create new inferior')
+    out = gdb.execute('add-inferior -exec /home/cer1991/QEMU/stm32_test/out/HAL_demo.elf -no-connection', from_tty=False, to_string=True)
+    out = out.replace('~', '').replace('\"', '').replace('\\n', '')
+    # print(out)
+    result = GetAllStrListInText(out, r'Added inferior ([0-9]+)')
+    inferior_no = result[0]
+    out = gdb.execute('inferior '+inferior_no, from_tty=False, to_string=True)
+    out = out.replace('~', '').replace('\"', '').replace('\\n', '')
+    # print(out)
+    out = gdb.execute('target extended-remote localhost:'+str(port), from_tty=False, to_string=True)
+    out = out.replace('~', '').replace('\"', '').replace('\\n', '')
+    # print(out)
+    return inferior_no
 #----------------------        Functions Area End ------------------------------
 
 
@@ -224,45 +297,7 @@ class freertos_check_tasks(gdb.Command):
                             continue
                         thread.name = get_thread_name(thread.tcb)
                         topofstack = get_value_by_name('((TCB_t *)'+str(thread.tcb)+')->pxTopOfStack')
-                        thread.context.r4  = get_word_value_by_address(topofstack+0)
-                        thread.context.r5  = get_word_value_by_address(topofstack+4)
-                        thread.context.r6  = get_word_value_by_address(topofstack+8)
-                        thread.context.r7  = get_word_value_by_address(topofstack+12)
-                        thread.context.r8  = get_word_value_by_address(topofstack+16)
-                        thread.context.r9  = get_word_value_by_address(topofstack+20)
-                        thread.context.r10 = get_word_value_by_address(topofstack+24)
-                        thread.context.r11 = get_word_value_by_address(topofstack+28)
-                        exec_return = get_word_value_by_address(topofstack+32)
-                        if (exec_return & 0x10) != 0:
-                            # do not use FPU
-                            thread.context.r0  = get_word_value_by_address(topofstack+36)
-                            thread.context.r1  = get_word_value_by_address(topofstack+40)
-                            thread.context.r2  = get_word_value_by_address(topofstack+44)
-                            thread.context.r3  = get_word_value_by_address(topofstack+48)
-                            thread.context.r12 = get_word_value_by_address(topofstack+52)
-                            thread.context.lr  = get_word_value_by_address(topofstack+56)
-                            thread.context.pc  = get_word_value_by_address(topofstack+60)
-                            xpsr = get_word_value_by_address(topofstack+64)
-                            if (xpsr & 0x200) == 0:
-                                # not 8B aligned
-                                thread.context.sp  = topofstack+68
-                            else:
-                                thread.context.sp  = topofstack+68+4
-                        else:
-                            # do use FPU
-                            thread.context.r0  = get_word_value_by_address(topofstack+16*4+36)
-                            thread.context.r1  = get_word_value_by_address(topofstack+16*4+40)
-                            thread.context.r2  = get_word_value_by_address(topofstack+16*4+44)
-                            thread.context.r3  = get_word_value_by_address(topofstack+16*4+48)
-                            thread.context.r12 = get_word_value_by_address(topofstack+16*4+52)
-                            thread.context.lr  = get_word_value_by_address(topofstack+16*4+56)
-                            thread.context.pc  = get_word_value_by_address(topofstack+16*4+60)
-                            xpsr = get_word_value_by_address(topofstack+16*4+64)
-                            if (xpsr & 0x200) == 0:
-                                # not 8B aligned
-                                thread.context.sp  = topofstack+68+33*4
-                            else:
-                                thread.context.sp  = topofstack+68+4+33*4
+                        freertos_get_contex(topofstack, thread)
                         self.freertos.tasks.append(copy.deepcopy(thread))
                         total_task_number += 1
 
@@ -279,45 +314,7 @@ class freertos_check_tasks(gdb.Command):
                         thread.tcb = get_value_by_name('(*pxDelayedTaskList)->xListEnd.pxNext'+'->pxNext'*i) - 4
                     thread.name = get_thread_name(thread.tcb)
                     topofstack = get_value_by_name('((TCB_t *)'+str(thread.tcb)+')->pxTopOfStack')
-                    thread.context.r4  = get_word_value_by_address(topofstack+0)
-                    thread.context.r5  = get_word_value_by_address(topofstack+4)
-                    thread.context.r6  = get_word_value_by_address(topofstack+8)
-                    thread.context.r7  = get_word_value_by_address(topofstack+12)
-                    thread.context.r8  = get_word_value_by_address(topofstack+16)
-                    thread.context.r9  = get_word_value_by_address(topofstack+20)
-                    thread.context.r10 = get_word_value_by_address(topofstack+24)
-                    thread.context.r11 = get_word_value_by_address(topofstack+28)
-                    exec_return = get_word_value_by_address(topofstack+32)
-                    if (exec_return & 0x10) != 0:
-                        # do not use FPU
-                        thread.context.r0  = get_word_value_by_address(topofstack+36)
-                        thread.context.r1  = get_word_value_by_address(topofstack+40)
-                        thread.context.r2  = get_word_value_by_address(topofstack+44)
-                        thread.context.r3  = get_word_value_by_address(topofstack+48)
-                        thread.context.r12 = get_word_value_by_address(topofstack+52)
-                        thread.context.lr  = get_word_value_by_address(topofstack+56)
-                        thread.context.pc  = get_word_value_by_address(topofstack+60)
-                        xpsr = get_word_value_by_address(topofstack+64)
-                        if (xpsr & 0x200) == 0:
-                            # not 8B aligned
-                            thread.context.sp  = topofstack+68
-                        else:
-                            thread.context.sp  = topofstack+68+4
-                    else:
-                        # do use FPU
-                        thread.context.r0  = get_word_value_by_address(topofstack+16*4+36)
-                        thread.context.r1  = get_word_value_by_address(topofstack+16*4+40)
-                        thread.context.r2  = get_word_value_by_address(topofstack+16*4+44)
-                        thread.context.r3  = get_word_value_by_address(topofstack+16*4+48)
-                        thread.context.r12 = get_word_value_by_address(topofstack+16*4+52)
-                        thread.context.lr  = get_word_value_by_address(topofstack+16*4+56)
-                        thread.context.pc  = get_word_value_by_address(topofstack+16*4+60)
-                        xpsr = get_word_value_by_address(topofstack+16*4+64)
-                        if (xpsr & 0x200) == 0:
-                            # not 8B aligned
-                            thread.context.sp  = topofstack+68+33*4
-                        else:
-                            thread.context.sp  = topofstack+68+4+33*4
+                    freertos_get_contex(topofstack, thread)
                     self.freertos.tasks.append(copy.deepcopy(thread))
                     total_task_number += 1
             delayed_task_no = get_value_by_name('(*pxOverflowDelayedTaskList)->uxNumberOfItems')
@@ -332,45 +329,7 @@ class freertos_check_tasks(gdb.Command):
                         thread.tcb = get_value_by_name('(*pxOverflowDelayedTaskList)->xListEnd.pxNext'+'->pxNext'*i) - 4
                     thread.name = get_thread_name(thread.tcb)
                     topofstack = get_value_by_name('((TCB_t *)'+str(thread.tcb)+')->pxTopOfStack')
-                    thread.context.r4  = get_word_value_by_address(topofstack+0)
-                    thread.context.r5  = get_word_value_by_address(topofstack+4)
-                    thread.context.r6  = get_word_value_by_address(topofstack+8)
-                    thread.context.r7  = get_word_value_by_address(topofstack+12)
-                    thread.context.r8  = get_word_value_by_address(topofstack+16)
-                    thread.context.r9  = get_word_value_by_address(topofstack+20)
-                    thread.context.r10 = get_word_value_by_address(topofstack+24)
-                    thread.context.r11 = get_word_value_by_address(topofstack+28)
-                    exec_return = get_word_value_by_address(topofstack+32)
-                    if (exec_return & 0x10) != 0:
-                        # do not use FPU
-                        thread.context.r0  = get_word_value_by_address(topofstack+36)
-                        thread.context.r1  = get_word_value_by_address(topofstack+40)
-                        thread.context.r2  = get_word_value_by_address(topofstack+44)
-                        thread.context.r3  = get_word_value_by_address(topofstack+48)
-                        thread.context.r12 = get_word_value_by_address(topofstack+52)
-                        thread.context.lr  = get_word_value_by_address(topofstack+56)
-                        thread.context.pc  = get_word_value_by_address(topofstack+60)
-                        xpsr = get_word_value_by_address(topofstack+64)
-                        if (xpsr & 0x200) == 0:
-                            # not 8B aligned
-                            thread.context.sp  = topofstack+68
-                        else:
-                            thread.context.sp  = topofstack+68+4
-                    else:
-                        # do use FPU
-                        thread.context.r0  = get_word_value_by_address(topofstack+16*4+36)
-                        thread.context.r1  = get_word_value_by_address(topofstack+16*4+40)
-                        thread.context.r2  = get_word_value_by_address(topofstack+16*4+44)
-                        thread.context.r3  = get_word_value_by_address(topofstack+16*4+48)
-                        thread.context.r12 = get_word_value_by_address(topofstack+16*4+52)
-                        thread.context.lr  = get_word_value_by_address(topofstack+16*4+56)
-                        thread.context.pc  = get_word_value_by_address(topofstack+16*4+60)
-                        xpsr = get_word_value_by_address(topofstack+16*4+64)
-                        if (xpsr & 0x200) == 0:
-                            # not 8B aligned
-                            thread.context.sp  = topofstack+68+33*4
-                        else:
-                            thread.context.sp  = topofstack+68+4+33*4
+                    freertos_get_contex(topofstack, thread)
                     self.freertos.tasks.append(copy.deepcopy(thread))
                     total_task_number += 1
 
@@ -387,45 +346,7 @@ class freertos_check_tasks(gdb.Command):
                         thread.tcb = get_value_by_name('(xSuspendedTaskList).xListEnd.pxNext'+'->pxNext'*i) - 4
                     thread.name = get_thread_name(thread.tcb)
                     topofstack = get_value_by_name('((TCB_t *)'+str(thread.tcb)+')->pxTopOfStack')
-                    thread.context.r4  = get_word_value_by_address(topofstack+0)
-                    thread.context.r5  = get_word_value_by_address(topofstack+4)
-                    thread.context.r6  = get_word_value_by_address(topofstack+8)
-                    thread.context.r7  = get_word_value_by_address(topofstack+12)
-                    thread.context.r8  = get_word_value_by_address(topofstack+16)
-                    thread.context.r9  = get_word_value_by_address(topofstack+20)
-                    thread.context.r10 = get_word_value_by_address(topofstack+24)
-                    thread.context.r11 = get_word_value_by_address(topofstack+28)
-                    exec_return = get_word_value_by_address(topofstack+32)
-                    if (exec_return & 0x10) != 0:
-                        # do not use FPU
-                        thread.context.r0  = get_word_value_by_address(topofstack+36)
-                        thread.context.r1  = get_word_value_by_address(topofstack+40)
-                        thread.context.r2  = get_word_value_by_address(topofstack+44)
-                        thread.context.r3  = get_word_value_by_address(topofstack+48)
-                        thread.context.r12 = get_word_value_by_address(topofstack+52)
-                        thread.context.lr  = get_word_value_by_address(topofstack+56)
-                        thread.context.pc  = get_word_value_by_address(topofstack+60)
-                        xpsr = get_word_value_by_address(topofstack+64)
-                        if (xpsr & 0x200) == 0:
-                            # not 8B aligned
-                            thread.context.sp  = topofstack+68
-                        else:
-                            thread.context.sp  = topofstack+68+4
-                    else:
-                        # do use FPU
-                        thread.context.r0  = get_word_value_by_address(topofstack+16*4+36)
-                        thread.context.r1  = get_word_value_by_address(topofstack+16*4+40)
-                        thread.context.r2  = get_word_value_by_address(topofstack+16*4+44)
-                        thread.context.r3  = get_word_value_by_address(topofstack+16*4+48)
-                        thread.context.r12 = get_word_value_by_address(topofstack+16*4+52)
-                        thread.context.lr  = get_word_value_by_address(topofstack+16*4+56)
-                        thread.context.pc  = get_word_value_by_address(topofstack+16*4+60)
-                        xpsr = get_word_value_by_address(topofstack+16*4+64)
-                        if (xpsr & 0x200) == 0:
-                            # not 8B aligned
-                            thread.context.sp  = topofstack+68+33*4
-                        else:
-                            thread.context.sp  = topofstack+68+4+33*4
+                    freertos_get_contex(topofstack, thread)
                     self.freertos.tasks.append(copy.deepcopy(thread))
                     total_task_number += 1
 
@@ -442,45 +363,7 @@ class freertos_check_tasks(gdb.Command):
                         thread.tcb = get_value_by_name('(xPendingReadyList).xListEnd.pxNext'+'->pxNext'*i) - 4
                     thread.name = get_thread_name(thread.tcb)
                     topofstack = get_value_by_name('((TCB_t *)'+str(thread.tcb)+')->pxTopOfStack')
-                    thread.context.r4  = get_word_value_by_address(topofstack+0)
-                    thread.context.r5  = get_word_value_by_address(topofstack+4)
-                    thread.context.r6  = get_word_value_by_address(topofstack+8)
-                    thread.context.r7  = get_word_value_by_address(topofstack+12)
-                    thread.context.r8  = get_word_value_by_address(topofstack+16)
-                    thread.context.r9  = get_word_value_by_address(topofstack+20)
-                    thread.context.r10 = get_word_value_by_address(topofstack+24)
-                    thread.context.r11 = get_word_value_by_address(topofstack+28)
-                    exec_return = get_word_value_by_address(topofstack+32)
-                    if (exec_return & 0x10) != 0:
-                        # do not use FPU
-                        thread.context.r0  = get_word_value_by_address(topofstack+36)
-                        thread.context.r1  = get_word_value_by_address(topofstack+40)
-                        thread.context.r2  = get_word_value_by_address(topofstack+44)
-                        thread.context.r3  = get_word_value_by_address(topofstack+48)
-                        thread.context.r12 = get_word_value_by_address(topofstack+52)
-                        thread.context.lr  = get_word_value_by_address(topofstack+56)
-                        thread.context.pc  = get_word_value_by_address(topofstack+60)
-                        xpsr = get_word_value_by_address(topofstack+64)
-                        if (xpsr & 0x200) == 0:
-                            # not 8B aligned
-                            thread.context.sp  = topofstack+68
-                        else:
-                            thread.context.sp  = topofstack+68+4
-                    else:
-                        # do use FPU
-                        thread.context.r0  = get_word_value_by_address(topofstack+16*4+36)
-                        thread.context.r1  = get_word_value_by_address(topofstack+16*4+40)
-                        thread.context.r2  = get_word_value_by_address(topofstack+16*4+44)
-                        thread.context.r3  = get_word_value_by_address(topofstack+16*4+48)
-                        thread.context.r12 = get_word_value_by_address(topofstack+16*4+52)
-                        thread.context.lr  = get_word_value_by_address(topofstack+16*4+56)
-                        thread.context.pc  = get_word_value_by_address(topofstack+16*4+60)
-                        xpsr = get_word_value_by_address(topofstack+16*4+64)
-                        if (xpsr & 0x200) == 0:
-                            # not 8B aligned
-                            thread.context.sp  = topofstack+68+33*4
-                        else:
-                            thread.context.sp  = topofstack+68+4+33*4
+                    freertos_get_contex(topofstack, thread)
                     self.freertos.tasks.append(copy.deepcopy(thread))
                     total_task_number += 1
 
@@ -497,45 +380,7 @@ class freertos_check_tasks(gdb.Command):
                         thread.tcb = get_value_by_name('(xTasksWaitingTermination).xListEnd.pxNext'+'->pxNext'*i) - 4
                     thread.name = get_thread_name(thread.tcb)
                     topofstack = get_value_by_name('((TCB_t *)'+str(thread.tcb)+')->pxTopOfStack')
-                    thread.context.r4  = get_word_value_by_address(topofstack+0)
-                    thread.context.r5  = get_word_value_by_address(topofstack+4)
-                    thread.context.r6  = get_word_value_by_address(topofstack+8)
-                    thread.context.r7  = get_word_value_by_address(topofstack+12)
-                    thread.context.r8  = get_word_value_by_address(topofstack+16)
-                    thread.context.r9  = get_word_value_by_address(topofstack+20)
-                    thread.context.r10 = get_word_value_by_address(topofstack+24)
-                    thread.context.r11 = get_word_value_by_address(topofstack+28)
-                    exec_return = get_word_value_by_address(topofstack+32)
-                    if (exec_return & 0x10) != 0:
-                        # do not use FPU
-                        thread.context.r0  = get_word_value_by_address(topofstack+36)
-                        thread.context.r1  = get_word_value_by_address(topofstack+40)
-                        thread.context.r2  = get_word_value_by_address(topofstack+44)
-                        thread.context.r3  = get_word_value_by_address(topofstack+48)
-                        thread.context.r12 = get_word_value_by_address(topofstack+52)
-                        thread.context.lr  = get_word_value_by_address(topofstack+56)
-                        thread.context.pc  = get_word_value_by_address(topofstack+60)
-                        xpsr = get_word_value_by_address(topofstack+64)
-                        if (xpsr & 0x200) == 0:
-                            # not 8B aligned
-                            thread.context.sp  = topofstack+68
-                        else:
-                            thread.context.sp  = topofstack+68+4
-                    else:
-                        # do use FPU
-                        thread.context.r0  = get_word_value_by_address(topofstack+16*4+36)
-                        thread.context.r1  = get_word_value_by_address(topofstack+16*4+40)
-                        thread.context.r2  = get_word_value_by_address(topofstack+16*4+44)
-                        thread.context.r3  = get_word_value_by_address(topofstack+16*4+48)
-                        thread.context.r12 = get_word_value_by_address(topofstack+16*4+52)
-                        thread.context.lr  = get_word_value_by_address(topofstack+16*4+56)
-                        thread.context.pc  = get_word_value_by_address(topofstack+16*4+60)
-                        xpsr = get_word_value_by_address(topofstack+16*4+64)
-                        if (xpsr & 0x200) == 0:
-                            # not 8B aligned
-                            thread.context.sp  = topofstack+68+33*4
-                        else:
-                            thread.context.sp  = topofstack+68+4+33*4
+                    freertos_get_contex(topofstack, thread)
                     self.freertos.tasks.append(copy.deepcopy(thread))
                     total_task_number += 1
 
@@ -559,10 +404,41 @@ class freertos_switch_task(gdb.Command):
             if task_no == thread.number:
                 print('switch to '+ thread.name + ' task')
                 set_context(thread)
+
+class qemu_freertos_tasks(gdb.Command):
+    def __init__(self, rtos):
+        super(qemu_freertos_tasks, self).__init__("qemu_freertos_tasks", gdb.COMMAND_DATA)
+        self.freertos = rtos
+        self.qemu = {}
+
+    def invoke(self, arg, from_tty):
+        restore_cmd = arg
+        # print(restore_cmd)
+
+        port = 1234
+        for thread in self.freertos.tasks:
+            self.qemu['port'] = port
+            port += 1
+            if thread.number == 0:
+                self.qemu['device'] = None
+                self.qemu['inferior'] = '1'
+                if thread.status.find('exception') >= 0:
+                    gdb.execute('thread name exception', from_tty=False, to_string=True)
+                else:
+                    gdb.execute('thread name '+thread.name, from_tty=False, to_string=True)
+            else:
+                self.qemu['device'] = qemu_start_arm_cpu(self.qemu['port'])
+                self.qemu['inferior'] = gdb_create_new_inferior(self.qemu['port'])
+                gdb.execute('source -v '+restore_cmd, from_tty=False, to_string=True)
+                set_context(thread)
+                gdb.execute('thread name '+thread.name, from_tty=False, to_string=True)
+        out = gdb.execute('inferior 1', from_tty=False, to_string=True)
+        # print(out)
 #----------------------        Class Area End     ------------------------------
 
 #----------------------        Main Area          ------------------------------
 rtos = freertos()
 freertos_check_tasks(rtos)
 freertos_switch_task(rtos)
+qemu_freertos_tasks(rtos)
 #----------------------        Main Area End      ------------------------------
