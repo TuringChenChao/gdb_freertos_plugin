@@ -12,9 +12,8 @@
             "type": "cortex-debug",
             "servertype": "external",
             "gdbTarget": "localhost:1234",
-            // "armToolchainPath": "/home/cer1991/QEMU/arm_toolchain_custom",
+            "armToolchainPath": "/home/cer1991/QEMU/arm_toolchain_custom",
             "toolchainPrefix": "tc-arm-none-eabi",
-            // "toolchainPrefix": "py-arm-none-eabi",
             "preAttachCommands": [
                 "set confirm off",
                 "cd /home/cer1991/QEMU/stm32_test",
@@ -25,10 +24,11 @@
                 "c",
                 // "cd /home/cer1991/QEMU/stm32_test",
                 // "file ./out/HAL_demo.elf",
-                "source -v restore_cmd.txt",
-                // "source -v restore_cmd1.txt",
+                // "source -v restore_cmd.txt",
+                "source -v restore_cmd1.txt",
                 "source -v freertos.py",
                 "freertos_check_tasks",
+                "qemu_freertos_tasks restore_cmd1.txt"
             ],
             // "showDevDebugOutput": true
         }
