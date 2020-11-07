@@ -107,28 +107,29 @@ def freertos_get_contex(topofstack, thread):
         xpsr = get_word_value_by_address(topofstack+16*4+64)
         if (xpsr & 0x200) == 0:
             # not 8B aligned
-            thread.context.sp  = topofstack+68+33*4
+            thread.context.sp  = topofstack+68+34*4
         else:
-            thread.context.sp  = topofstack+68+4+33*4
+            thread.context.sp  = topofstack+68+4+34*4
 
 def qemu_start_arm_cpu(port):
     # print(port)
-    qemu = subprocess.Popen([   "qemu-system-arm",
-                                "-machine", "cm7_virtual",
-                                "-kernel", "/home/cer1991/ARM/QEMU_Startup/out/qemu_startup.elf",
-                                "-gdb", "tcp::"+str(port),
-                                "-nographic"],
-                                bufsize=0,
-                                stdin=subprocess.PIPE,
-                                stdout=subprocess.PIPE,
-                                stderr=subprocess.PIPE,
-                                shell=False)
+    # qemu = subprocess.Popen([   "qemu-system-arm",
+    #                             "-machine", "cm7_virtual",
+    #                             "-kernel", "/home/cer1991/ARM/QEMU_Startup/out/qemu_startup.elf",
+    #                             "-gdb", "tcp::"+str(port),
+    #                             "-nographic"],
+    #                             bufsize=0,
+    #                             stdin=subprocess.PIPE,
+    #                             stdout=subprocess.PIPE,
+    #                             stderr=subprocess.PIPE,
+    #                             shell=False)
     # time.sleep(2)
+    qemu = None
     return qemu
 
-def gdb_create_new_inferior(port):
+def gdb_create_new_inferior(port, image_file):
     # print('enter create new inferior')
-    out = gdb.execute('add-inferior -exec /home/cer1991/QEMU/stm32_test/out/HAL_demo.elf -no-connection', from_tty=False, to_string=True)
+    out = gdb.execute('add-inferior -exec '+ image_file +' -no-connection', from_tty=False, to_string=True)
     out = out.replace('~', '').replace('\"', '').replace('\\n', '')
     # print(out)
     result = GetAllStrListInText(out, r'Added inferior ([0-9]+)')
@@ -254,7 +255,7 @@ class freertos_check_tasks(gdb.Command):
                     current_thread.context.sp = current_thread.context.sp
                 else:
                     #do use FPUs
-                    current_thread.context.sp += 17*4
+                    current_thread.context.sp += 18*4
                 self.freertos.tasks.append(copy.deepcopy(current_thread))
                 total_task_number += 1
             # thread mode
@@ -412,7 +413,10 @@ class qemu_freertos_tasks(gdb.Command):
         self.qemu = {}
 
     def invoke(self, arg, from_tty):
-        restore_cmd = arg
+        parameter = arg.split(' ')
+        image_file = parameter[0]
+        restore_cmd = parameter[1]
+        # print(image_file)
         # print(restore_cmd)
 
         port = 1234
@@ -423,12 +427,12 @@ class qemu_freertos_tasks(gdb.Command):
                 self.qemu['device'] = None
                 self.qemu['inferior'] = '1'
                 if thread.status.find('exception') >= 0:
-                    gdb.execute('thread name exception', from_tty=False, to_string=True)
+                    gdb.execute('thread name '+thread.status[thread.status.find('exception'):], from_tty=False, to_string=True)
                 else:
                     gdb.execute('thread name '+thread.name, from_tty=False, to_string=True)
             else:
                 self.qemu['device'] = qemu_start_arm_cpu(self.qemu['port'])
-                self.qemu['inferior'] = gdb_create_new_inferior(self.qemu['port'])
+                self.qemu['inferior'] = gdb_create_new_inferior(self.qemu['port'], image_file)
                 gdb.execute('source -v '+restore_cmd, from_tty=False, to_string=True)
                 set_context(thread)
                 gdb.execute('thread name '+thread.name, from_tty=False, to_string=True)
