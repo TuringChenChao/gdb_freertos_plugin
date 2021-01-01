@@ -438,6 +438,19 @@ class qemu_freertos_tasks(gdb.Command):
                 gdb.execute('thread name '+thread.name, from_tty=False, to_string=True)
         out = gdb.execute('inferior 1', from_tty=False, to_string=True)
         # print(out)
+
+# TODO: implement it
+class freertos_heap_check(gdb.Command):
+    def __init__(self, rtos):
+        super(freertos_heap_check, self).__init__("freertos_heap_check", gdb.COMMAND_DATA)
+        self.freertos = rtos
+
+    def invoke(self, arg, from_tty):
+        task_no = int(arg, 10)
+        for thread in self.freertos.tasks:
+            if task_no == thread.number:
+                print('switch to '+ thread.name + ' task')
+                set_context(thread)
 #----------------------        Class Area End     ------------------------------
 
 #----------------------        Main Area          ------------------------------
@@ -445,4 +458,5 @@ rtos = freertos()
 freertos_check_tasks(rtos)
 freertos_switch_task(rtos)
 qemu_freertos_tasks(rtos)
+freertos_heap_check(rtos)
 #----------------------        Main Area End      ------------------------------
