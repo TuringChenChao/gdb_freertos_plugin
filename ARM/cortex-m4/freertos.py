@@ -289,9 +289,9 @@ class freertos_check_tasks(gdb.Command):
                         thread.number = total_task_number
                         thread.status = 'ready'
                         if j == 0:
-                            thread.tcb = get_value_by_name('(pxReadyTasksLists['+str(i)+']).xListEnd.pxNext') - 4
+                            thread.tcb = get_value_by_name('(pxReadyTasksLists['+str(i)+']).xListEnd.pxNext'+'->pvOwner')
                         else:
-                            thread.tcb = get_value_by_name('(pxReadyTasksLists['+str(i)+']).xListEnd.pxNext'+'->pxNext'*j) - 4
+                            thread.tcb = get_value_by_name('(pxReadyTasksLists['+str(i)+']).xListEnd.pxNext'+'->pxNext'*j+'->pvOwner')
                         if thread.tcb == current_thread.tcb:
                             # if the ready task is the current task, do nothing
                             # print('(pxReadyTasksLists['+str(i)+']) ' + str(j))
@@ -310,9 +310,9 @@ class freertos_check_tasks(gdb.Command):
                     thread.number = total_task_number
                     thread.status = 'delayed'
                     if i == 0:
-                        thread.tcb = get_value_by_name('(*pxDelayedTaskList)->xListEnd.pxNext') - 4
+                        thread.tcb = get_value_by_name('(*pxDelayedTaskList)->xListEnd.pxNext'+'->pvOwner')
                     else:
-                        thread.tcb = get_value_by_name('(*pxDelayedTaskList)->xListEnd.pxNext'+'->pxNext'*i) - 4
+                        thread.tcb = get_value_by_name('(*pxDelayedTaskList)->xListEnd.pxNext'+'->pxNext'*i+'->pvOwner')
                     thread.name = get_thread_name(thread.tcb)
                     topofstack = get_value_by_name('((TCB_t *)'+str(thread.tcb)+')->pxTopOfStack')
                     freertos_get_contex(topofstack, thread)
@@ -325,9 +325,9 @@ class freertos_check_tasks(gdb.Command):
                     thread.number = total_task_number
                     thread.status = 'delayed'
                     if i == 0:
-                        thread.tcb = get_value_by_name('(*pxOverflowDelayedTaskList)->xListEnd.pxNext') - 4
+                        thread.tcb = get_value_by_name('(*pxOverflowDelayedTaskList)->xListEnd.pxNext'+'->pvOwner')
                     else:
-                        thread.tcb = get_value_by_name('(*pxOverflowDelayedTaskList)->xListEnd.pxNext'+'->pxNext'*i) - 4
+                        thread.tcb = get_value_by_name('(*pxOverflowDelayedTaskList)->xListEnd.pxNext'+'->pxNext'*i+'->pvOwner')
                     thread.name = get_thread_name(thread.tcb)
                     topofstack = get_value_by_name('((TCB_t *)'+str(thread.tcb)+')->pxTopOfStack')
                     freertos_get_contex(topofstack, thread)
@@ -342,9 +342,9 @@ class freertos_check_tasks(gdb.Command):
                     thread.number = total_task_number
                     thread.status = 'suspended'
                     if i == 0:
-                        thread.tcb = get_value_by_name('(xSuspendedTaskList).xListEnd.pxNext') - 4
+                        thread.tcb = get_value_by_name('(xSuspendedTaskList).xListEnd.pxNext'+'->pvOwner')
                     else:
-                        thread.tcb = get_value_by_name('(xSuspendedTaskList).xListEnd.pxNext'+'->pxNext'*i) - 4
+                        thread.tcb = get_value_by_name('(xSuspendedTaskList).xListEnd.pxNext'+'->pxNext'*i+'->pvOwner')
                     thread.name = get_thread_name(thread.tcb)
                     topofstack = get_value_by_name('((TCB_t *)'+str(thread.tcb)+')->pxTopOfStack')
                     freertos_get_contex(topofstack, thread)
@@ -359,9 +359,9 @@ class freertos_check_tasks(gdb.Command):
                     thread.number = total_task_number
                     thread.status = 'pending_ready'
                     if i == 0:
-                        thread.tcb = get_value_by_name('(xPendingReadyList).xListEnd.pxNext') - 4
+                        thread.tcb = get_value_by_name('(xPendingReadyList).xListEnd.pxNext'+'->pvOwner')
                     else:
-                        thread.tcb = get_value_by_name('(xPendingReadyList).xListEnd.pxNext'+'->pxNext'*i) - 4
+                        thread.tcb = get_value_by_name('(xPendingReadyList).xListEnd.pxNext'+'->pxNext'*i+'->pvOwner')
                     thread.name = get_thread_name(thread.tcb)
                     topofstack = get_value_by_name('((TCB_t *)'+str(thread.tcb)+')->pxTopOfStack')
                     freertos_get_contex(topofstack, thread)
@@ -376,9 +376,9 @@ class freertos_check_tasks(gdb.Command):
                     thread.number = total_task_number
                     thread.status = 'pending_ready'
                     if i == 0:
-                        thread.tcb = get_value_by_name('(xTasksWaitingTermination).xListEnd.pxNext') - 4
+                        thread.tcb = get_value_by_name('(xTasksWaitingTermination).xListEnd.pxNext'+'->pvOwner')
                     else:
-                        thread.tcb = get_value_by_name('(xTasksWaitingTermination).xListEnd.pxNext'+'->pxNext'*i) - 4
+                        thread.tcb = get_value_by_name('(xTasksWaitingTermination).xListEnd.pxNext'+'->pxNext'*i+'->pvOwner')
                     thread.name = get_thread_name(thread.tcb)
                     topofstack = get_value_by_name('((TCB_t *)'+str(thread.tcb)+')->pxTopOfStack')
                     freertos_get_contex(topofstack, thread)
