@@ -413,11 +413,11 @@ class freertos_check_tasks(gdb.Command):
             current_thread.status = 'running'
             current_thread.name = get_thread_name('pxCurrentTCB')
             current_thread.tcb = get_value_by_name('pxCurrentTCB')
-            xpsr = get_value_by_name('nvic_irq_execution_number')
+            xpsr = get_value_by_name('port_interruptNesting')
             # handler mode
             if xpsr != 0:
                 # exception callstack
-                current_thread.status = 'running, but interrupted by exception ' + str(xpsr)
+                current_thread.status = 'running, but interrupted by exception'
                 current_thread.context.ar0  = get_value_by_name('$ar0')
                 current_thread.context.ar1  = get_value_by_name('$ar1')
                 current_thread.context.ar2  = get_value_by_name('$ar2')
